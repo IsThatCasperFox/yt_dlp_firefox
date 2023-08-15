@@ -1,14 +1,10 @@
-#!/usr/bin/env -S python3 -u
+#!/usr/bin/env python3
 
-# Import required libraries
 import json
 import struct
 import sys
 from pathlib import Path
 from subprocess import Popen, run
-
-# Define the directory where downloaded files will be saved
-DOWNLOADS = Path.home() / "Downloads"
 
 # Read a message from stdin and decode it.
 def get_message():
@@ -16,7 +12,6 @@ def get_message():
 
     if not raw_length:
         sys.exit(0)
-    
     message_length = struct.unpack("=I", raw_length)[0]
     message = sys.stdin.buffer.read(message_length).decode("utf-8")
     return json.loads(message)
@@ -36,27 +31,23 @@ def send_message(encoded_message):
     sys.stdout.buffer.write(encoded_message["content"])
     sys.stdout.buffer.flush()
 
-# Read the incoming message
+DOWNLOADS = Path.home() / "Downloads"
+
 message = get_message()
 
-# Extract the action from the message
 action = message["action"]
-
-# Process the action and generate a reply
 if action == "test":
     reply = {"success": True}
 elif action == "download":
     url = message["url"]
-    # Run yt-dlp command to fetch video information
     p = run(
-        ["yt-dlp", "--print-json", "--", url],
+        ["yt-dlp.exe", "--print-json", "--", url],  # Use yt-dlp.exe on Windows
         capture_output=True,
         text=True,
         cwd=DOWNLOADS,
     )
     if p.returncode == 0:
         output = json.loads(p.stdout)
-        # Generate a successful reply with downloaded video information
         reply = {
             "success": True,
             "path": str(DOWNLOADS / output["_filename"]),
@@ -64,25 +55,20 @@ elif action == "download":
             "thumbnail": output["thumbnail"],
         }
     else:
-        # Generate a failure reply with the error message
         reply = {
             "success": False,
             "error": p.stderr,
         }
 elif action == "open":
     path = message["path"]
-    # Open the specified file using xdg-open (for Linux systems)
-    Popen(["xdg-open", path])
+    Popen(["start", "", path], shell=True)  # Use 'start' command to open file with default program
     reply = {"success": True}
 elif action == "show":
     path = message["path"]
-    # Open the specified directory using nautilus (for Linux systems)
-    Popen(["nautilus", "--", path])
+    Popen(["explorer", "/select,", path], shell=True)  # Use 'explorer' to open file location in Windows Explorer
     reply = {"success": True}
 else:
-    # Handle unknown actions and generate an error reply
     print(f"Got unknown action: {message}", file=sys.stderr)
     reply = {"success": False, "error": f"Unknown action: {action}"}
 
-# Encode and send the reply message
 send_message(encode_message(reply))
